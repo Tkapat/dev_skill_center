@@ -66,6 +66,11 @@ export interface MyCentre {
   status: CentreStatus | null;
   submitted_at: string | null;
   stats: CentreStats | null;
+  live_summary?: {
+    counts: { live: number; idle: number; offline: number; tampered: number; provisional: number };
+    cameras: LiveStatus[];
+    today: { snapshots: number; people_max: number | null };
+  } | null;
 }
 
 export type SessionState = "upcoming" | "active" | "closed" | "missed";
@@ -274,4 +279,85 @@ export interface EdgeStatus {
   unsynced_count: number;
   last_sync?: string | null;
   chain_ok: boolean;
+}
+
+/* ------------------------------------------------------------- live room */
+
+export type LiveState = "live" | "idle" | "offline" | "tampered" | "provisional";
+
+export interface LiveSession {
+  id: string;
+  label?: string | null;
+  start_ts?: string | null;
+  end_ts?: string | null;
+}
+
+export interface LiveItemCounts {
+  present: number;
+  in_use: number;
+  idle?: number;
+  off?: number;
+}
+
+/** One row of GET /my/live (LiveStatus in the page plan). */
+export interface LiveStatus {
+  camera_id: string;
+  camera_name: string;
+  state: LiveState | null;
+  ts?: string | null;
+  age_s?: number | null;
+  interval_s?: number;
+  session?: LiveSession | null;
+  people?: number | null;
+  people_smooth?: number | null;
+  claimed?: number | null;
+  items?: Record<string, LiveItemCounts>;
+  labels?: Record<string, string>;
+  quality?: { ok?: boolean; reasons?: string[] } | null;
+  thumb_url?: string | null;
+  spark?: number[];
+}
+
+export interface LiveCounts {
+  live: number;
+  idle: number;
+  offline: number;
+  tampered: number;
+  provisional: number;
+}
+
+export interface MyLiveResponse {
+  items: LiveStatus[];
+  counts?: LiveCounts;
+}
+
+export interface FrameBox {
+  cls: string;
+  /** normalised 0..1 against the uploaded frame */
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  conf?: number;
+}
+
+/** Response of POST /my/cameras/{id}/frame. */
+export interface FrameResponse {
+  accepted?: boolean;
+  reason?: string;
+  state?: string;
+  people?: number | null;
+  people_smooth?: number | null;
+  items?: Record<string, LiveItemCounts>;
+  boxes?: FrameBox[];
+  session?: LiveSession | null;
+  next_interval_s?: number;
+  reasons?: string[];
+}
+
+export interface DemoSessionResponse {
+  session_id: string;
+  label?: string;
+  start_ts?: string;
+  end_ts?: string;
 }

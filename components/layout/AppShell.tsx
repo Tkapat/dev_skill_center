@@ -11,6 +11,7 @@ import {
   Home,
   LogOut,
   Moon,
+  Radio,
   Settings,
   Sun,
   UserRound,
@@ -48,6 +49,7 @@ import type { Me } from "@/lib/types";
 export function navKey(pathname: string): string {
   if (pathname === "/" || pathname.startsWith("/dashboard")) return "home";
   if (pathname.startsWith("/attendance")) return "attendance";
+  if (pathname.startsWith("/live")) return "live";
   if (pathname.startsWith("/trainees") || pathname.startsWith("/staff") || pathname.startsWith("/schedule"))
     return "people";
   if (pathname.startsWith("/cameras") || pathname.startsWith("/equipment")) return "setup";
@@ -74,6 +76,7 @@ interface NavItem {
 export const NAV: NavItem[] = [
   { key: "home", label: "Dashboard", href: "/", icon: Home },
   { key: "attendance", label: "Attendance", href: "/attendance", icon: CalendarCheck },
+  { key: "live", label: "Live Monitor", href: "/live", icon: Radio },
   {
     key: "people",
     label: "People",
@@ -377,7 +380,7 @@ export function AppShell({ user, pathname, children }: AppShellProps) {
           <DockItem
             label="More"
             icon={Wrench}
-            active={["setup", "flags", "notices", "more"].includes(activeKey)}
+            active={["live", "setup", "flags", "notices", "more"].includes(activeKey)}
             badge={unread > 0}
             onClick={() => setMoreOpen(true)}
           />
@@ -391,6 +394,7 @@ export function AppShell({ user, pathname, children }: AppShellProps) {
           </SheetHeader>
           <div className="grid gap-1">
             {[
+              { label: "Live Monitor", href: "/live", icon: Radio },
               { label: "Cameras", href: "/cameras", icon: Video },
               { label: "Equipment", href: "/equipment", icon: Wrench },
               { label: "Staff", href: "/staff", icon: UserRound },

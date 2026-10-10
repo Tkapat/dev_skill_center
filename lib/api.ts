@@ -1,10 +1,10 @@
 import { refreshTokens, tokens } from "./auth";
 
-export async function api<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
+async function request<T>(path: string, init: RequestInit, json: boolean, retry: boolean): Promise<T> {
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
     ...init,
     headers: {
-      "Content-Type": "application/json",
+      ...(json ? { "Content-Type": "application/json" } : {}),
       "ngrok-skip-browser-warning": "true",
       ...(tokens.access ? { Authorization: `Bearer ${tokens.access}` } : {}),
       ...init.headers,
@@ -12,7 +12,7 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
   });
 
   if (res.status === 401 && retry && (await refreshTokens())) {
-    return api<T>(path, init, false);
+    return request<T>(path, init, json, false);
   }
 
   if (res.status === 401) {
@@ -34,6 +34,15 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
   }
 
   return body as T;
+}
+
+export async function api<T>(path: string, init: RequestInit = {}, retry = true): Promise<T> {
+  return request<T>(path, init, true, retry);
+}
+
+/** Multipart upload: same as api() but Content-Type is left to the browser (boundary). */
+export async function apiUpload<T>(path: string, body: FormData, retry = true): Promise<T> {
+  return request<T>(path, { method: "POST", body }, false, retry);
 }
 
 /** Fetch a relative signed image URL as a blob object URL (never <img src> direct). */

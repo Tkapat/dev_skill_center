@@ -113,6 +113,7 @@ export default function DashboardPage() {
 
   const centre = centreQ.data?.centre;
   const stats = centreQ.data?.stats;
+  const liveSummary = centreQ.data?.live_summary ?? null;
   const sessions = sessionsQ.data?.items ?? [];
   const flags = flagsQ.data?.items ?? [];
   const notices = noticesQ.data?.items ?? [];
@@ -135,7 +136,7 @@ export default function DashboardPage() {
           Good {part}, {firstName}.
         </h1>
         <p className="mt-1 text-sm text-muted-foreground" data-hero-sub>
-          {centre ? `${centre.name} · {centre.code}` : "…"}
+          {centre ? `${centre.name} · ${centre.code}` : "…"}
         </p>
         {centre && centre.status !== "live" && (
           <div className="mt-3" data-hero-action>
@@ -238,6 +239,81 @@ export default function DashboardPage() {
               </div>
             )}
           </section>
+
+          {liveSummary && liveSummary.cameras.length > 0 && (
+            <section aria-label="Live rooms" className="card overflow-hidden">
+              <div className="flex items-center justify-between border-b border-border px-5 py-4">
+                <h2 className="text-sm font-semibold">Live rooms</h2>
+                <Button asChild variant="ghost" size="sm">
+                  <Link href="/live">
+                    Open monitor
+                    <ArrowRight className="ml-1 h-3.5 w-3.5" aria-hidden />
+                  </Link>
+                </Button>
+              </div>
+              <div className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-3">
+                {liveSummary.cameras.map((cam) => (
+                  <Link
+                    key={cam.camera_id}
+                    href="/live"
+                    className="card card-hover overflow-hidden"
+                  >
+                    <div className="relative aspect-video bg-surface-2">
+                      {cam.thumb_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={cam.thumb_url}
+                          alt={cam.camera_name}
+                          className={cn(
+                            "h-full w-full object-cover",
+                            cam.state !== "live" && "opacity-60",
+                          )}
+                        />
+                      ) : (
+                        <div className="flex h-full items-center justify-center text-xs text-muted-foreground">
+                          No frame yet
+                        </div>
+                      )}
+                      <span
+                        className={cn(
+                          "absolute left-2 top-2 inline-flex h-6 items-center gap-1.5 rounded-full border px-2 text-xs font-medium backdrop-blur-sm",
+                          cam.state === "live"
+                            ? "border-success/40 bg-success/15 text-success"
+                            : cam.state === "tampered"
+                              ? "border-warning/40 bg-warning/15 text-warning"
+                              : "border-border bg-background/80 text-muted-foreground",
+                        )}
+                      >
+                        {cam.state === "live" && (
+                          <span className="live-dot h-1.5 w-1.5 rounded-full bg-success" aria-hidden />
+                        )}
+                        {cam.state === "live"
+                          ? "Live"
+                          : cam.state === "tampered"
+                            ? "Camera problem"
+                            : cam.state === "provisional"
+                              ? "Setup pending"
+                              : cam.state === "idle"
+                                ? "Idle"
+                                : "Offline"}
+                      </span>
+                    </div>
+                    <div className="p-4">
+                      <div className="flex items-baseline justify-between">
+                        <p className="text-sm font-semibold">{cam.camera_name}</p>
+                        <p className="tabular text-2xl font-semibold">{cam.people}</p>
+                      </div>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {cam.claimed != null
+                          ? `Claimed ${cam.claimed} / Camera saw ${cam.people}`
+                          : `${Object.values(cam.items ?? {}).reduce((a, i) => a + (i.in_use ?? 0), 0)} items in use`}
+                      </p>
+                    </div>
+                  </Link>
+                ))}
+              </div>
+            </section>
+          )}
 
           <div className="grid gap-4 lg:grid-cols-[1.4fr_1fr]">
             <section className="card overflow-hidden" aria-label="Today's sessions">

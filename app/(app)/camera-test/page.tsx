@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Camera, RotateCcw, VideoOff, Eye, EyeOff, Download } from "lucide-react";
+import { Camera, RotateCcw, VideoOff, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { messageFrom } from "@/lib/strings";
@@ -10,13 +10,12 @@ import { useGSAP } from "@/lib/motion";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/shared/PageHeader";
-import { useMe } from "@/hooks/useMe";
 import { useWebcam } from "@/hooks/useWebcam";
 import type { Camera as CameraType } from "@/lib/types";
 
 export default function CameraTestPage() {
-  const { user } = useMe();
   const cam = useWebcam();
+  const camStatus = cam.status;
   const [analyzing, setAnalyzing] = React.useState(false);
   const [result, setResult] = React.useState<{
     person_count: number;
@@ -26,6 +25,15 @@ export default function CameraTestPage() {
   const [cameraId, setCameraId] = React.useState("");
   const [showBoxes, setShowBoxes] = React.useState(true);
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const camRef = React.useRef(cam);
+  React.useEffect(() => {
+    camRef.current = cam;
+  });
+  const setVideo = React.useCallback((el: HTMLVideoElement | null) => {
+    videoRef.current = el;
+    camRef.current.setVideo(el);
+  }, []);
 
   const camsQ = useQuery({
     queryKey: ["cameras"],
@@ -36,7 +44,7 @@ export default function CameraTestPage() {
     if (!canvasRef.current || !result) return;
     const ctx = canvasRef.current.getContext("2d");
     if (!ctx) return;
-    const video = cam.videoRef.current;
+    const video = videoRef.current;
     if (!video) return;
 
     // Draw detection boxes
@@ -83,7 +91,7 @@ export default function CameraTestPage() {
   };
 
   const startAuto = () => {
-    if (!cameraId) return;
+    if (!cameraId) return () => {};
     const interval = setInterval(() => {
       if (cam.status === "live") analyze();
     }, 2000);
@@ -123,9 +131,9 @@ export default function CameraTestPage() {
           </div>
 
           <div className="relative overflow-hidden rounded-[16px] bg-surface-2" style={{ aspectRatio: "16 / 9" }}>
-            {cam.status !== "live" && (
+            {camStatus !== "live" && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center">
-                {cam.status === "denied" ? (
+                {camStatus === "denied" ? (
                   <>
                     <VideoOff className="h-8 w-8 text-muted-foreground" aria-hidden />
                     <p className="text-sm font-medium">Camera access denied</p>
@@ -140,8 +148,8 @@ export default function CameraTestPage() {
                 ) : (
                   <>
                     <Camera className="h-8 w-8 text-muted-foreground" aria-hidden />
-                    <Button size="sm" onClick={() => cam.start()} disabled={cam.status === "starting"}>
-                      {cam.status === "starting" ? <RotateCcw className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
+                    <Button size="sm" onClick={() => cam.start()} disabled={camStatus === "starting"}>
+                      {camStatus === "starting" ? <RotateCcw className="mr-1.5 h-3.5 w-3.5 animate-spin" aria-hidden /> : null}
                       Start camera
                     </Button>
                   </>
@@ -150,7 +158,7 @@ export default function CameraTestPage() {
             )}
 
             <video
-              ref={cam.setVideo}
+              ref={setVideo}
               playsInline
               muted
               className="h-full w-full object-cover"
@@ -162,7 +170,7 @@ export default function CameraTestPage() {
               style={{ width: "100%", height: "100%" }}
             />
 
-            {cam.status === "live" && (
+            {camStatus === "live" && (
               <div className="absolute bottom-3 left-3 right-3 flex flex-wrap items-center gap-2">
                 <Button
                   onClick={analyze}
@@ -213,7 +221,7 @@ export default function CameraTestPage() {
                 <div className="rounded-[12px] border border-border bg-surface p-4 text-center">
                   <p className="text-xs font-medium text-muted-foreground">Objects found</p>
                   <p className="mt-1 text-3xl font-bold tabular">
-                    {Object.keys(result.detections).length}
+                    {result.detections.length}
                   </p>
                 </div>
               </div>
@@ -240,7 +248,7 @@ export default function CameraTestPage() {
             </div>
           ) : (
             <p className="text-sm text-muted-foreground text-center py-8">
-              Start the camera and click "Analyze frame" to see detections.
+              Start the camera and click &quot;Analyze frame&quot; to see detections.
             </p>
           )}
         </section>
