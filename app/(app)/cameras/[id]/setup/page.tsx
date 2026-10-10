@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Check, Loader2, Plus, Trash2, Undo2, X } from "lucide-react";
+import { Check, Loader2, Plus, Trash2, Undo2, X, Video } from "lucide-react";
 import { toast } from "sonner";
 import { api } from "@/lib/api";
 import { messageFrom } from "@/lib/strings";
@@ -25,6 +25,7 @@ import { PageHeader } from "@/components/shared/PageHeader";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { SignedImage } from "@/components/shared/SignedImage";
 import { CameraStatusChip } from "@/components/shared/StatusChip";
+import { useWebcam } from "@/hooks/useWebcam";
 import type { Camera, ReferenceFrame } from "@/lib/types";
 
 type Pt = [number, number];
@@ -87,6 +88,8 @@ export default function CameraSetupPage() {
   const [saving, setSaving] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [dirty, setDirty] = React.useState(false);
+  const [capturingRef, setCapturingRef] = React.useState(false);
+  const camWebcam = useWebcam();
 
   const camQ = useQuery({
     queryKey: ["camera", id],
@@ -106,6 +109,13 @@ export default function CameraSetupPage() {
     setZones((c.zones as Zone[] | null) ?? []);
     setDirty(false);
   }, [camQ.data]);
+
+  // stop webcam on unmount
+  React.useEffect(() => {
+    return () => {
+      camWebcam.stop();
+    };
+  }, [camWebcam]);
 
   useGSAP(() => {
     if (!stageRef.current) return;
@@ -167,6 +177,33 @@ export default function CameraSetupPage() {
   const clear = () => {
     setActivePoly([]);
     setClearOpen(false);
+  };
+
+  const captureReferenceFrame = async () => {
+    if (capturingRef) return;
+    setCapturingRef(true);
+    try {
+      if (camWebcam.status !== "live") {
+        await camWebcam.start();
+        // Wait for camera to be ready
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+      const image_b64 = camWebcam.capture(0.8);
+      if (!image_b64) {
+        toast.error("Camera not ready. Please try again.");
+        return;
+      }
+      await api(`/my/cameras/${id}/reference-frame`, {
+        method: "POST",
+        body: JSON.stringify({ image_b64 }),
+      });
+      toast.success("Reference frame captured.");
+      await qc.invalidateQueries({ queryKey: ["camera", id, "reference"] });
+    } catch (err) {
+      toast.error(messageFrom(err));
+    } finally {
+      setCapturingRef(false);
+    }
   };
 
   const save = async (silent = false) => {
@@ -274,15 +311,58 @@ export default function CameraSetupPage() {
             style={{ aspectRatio: `${w} / ${h}` }}
           >
             {hasFrame ? (
-              <SignedImage
-                url={refUrl}
-                alt={`Reference frame for ${cam.name}`}
-                className="h-full w-full rounded-[16px]"
-              />
+              <>
+                <SignedImage
+                  url={refUrl}
+                  alt={`Reference frame for ${cam.name}`}
+                  className="h-full w-full rounded-[16px]"
+                />
+                {cam.source_kind === "browser" && (
+                  <div className="absolute bottom-3 right-3">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={captureReferenceFrame}
+                      disabled={capturingRef || camWebcam.status === "starting"}
+                      className="gap-1.5"
+                    >
+                      {camWebcam.status === "live" ? (
+                        <>
+                          <Video className="h-3.5 w-3.5" aria-hidden />
+                          Update reference frame
+                        </>
+                      ) : (
+                        <>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden />
+                          Starting camera…
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </>
             ) : (
               <div className="flex h-full w-full flex-col items-center justify-center gap-2 text-sm text-muted-foreground">
                 <span>No reference frame yet.</span>
-                <span className="text-xs">Point the camera at the empty classroom and capture a frame.</span>
+                {cam.source_kind === "browser" ? (
+                  <div className="flex flex-col items-center gap-2 text-xs text-muted-foreground">
+                    <span>Point the camera at the empty classroom and capture a reference frame.</span>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={captureReferenceFrame}
+                      disabled={capturingRef || camWebcam.status === "starting"}
+                    >
+                      {camWebcam.status === "live" ? (
+                        <>Capture reference frame</>
+                      ) : (
+                        <>Starting camera…</>
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  <span>Point the camera at the empty classroom and capture a frame.</span>
+                )}
               </div>
             )}
 

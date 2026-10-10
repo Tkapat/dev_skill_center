@@ -98,6 +98,7 @@ export interface Camera {
   id: string;
   name: string;
   source_uri: string;
+  source_kind: "browser" | "webcam" | "rtsp" | "file";
   resolution?: string | null;
   roi_polygon: [number, number][] | null;
   zones: { name: string; polygon: [number, number][] }[] | null;
