@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowRight, CalendarCheck, ClipboardList, TriangleAlert, MessageSquareWarning } from "lucide-react";
+import { ArrowRight, CalendarCheck, ClipboardList, KeyRound, TriangleAlert, MessageSquareWarning } from "lucide-react";
 import { api } from "@/lib/api";
 import { dayPart, fmtRange, IST, relativeTime, sessionState, SESSION_STATE_LABEL, todayIST } from "@/lib/format";
 import { useHeroEntrance, useRail, useStagger } from "@/lib/motion";
@@ -74,36 +74,38 @@ function fmtClockOf(ts: string) {
 export default function DashboardPage() {
   const { user, isPending } = useMe();
   const isTrainer = user?.role === "trainer";
+  const mustChange = !isPending && !!user?.must_change_password;
+  const dataEnabled = !isPending && !mustChange;
 
   const centreQ = useQuery({
     queryKey: ["centre", "mine"],
     queryFn: () => api<MyCentre>("/my/centre"),
     refetchInterval: 15_000,
-    enabled: !isPending,
+    enabled: dataEnabled,
   });
   const sessionsQ = useQuery({
     queryKey: ["sessions", "today"],
     queryFn: () => api<{ items: Session[] }>("/my/sessions/today"),
     refetchInterval: 15_000,
-    enabled: !isPending,
+    enabled: dataEnabled,
   });
   const flagsQ = useQuery({
     queryKey: ["flags", "recent"],
     queryFn: () => api<{ items: Flag[] }>("/my/flags?limit=5"),
     refetchInterval: 15_000,
-    enabled: !isPending,
+    enabled: dataEnabled,
   });
   const noticesQ = useQuery({
     queryKey: ["notices", "recent"],
     queryFn: () => api<{ items: Notice[] }>("/my/notices?unread_only=true&limit=3"),
     refetchInterval: 15_000,
-    enabled: !isPending,
+    enabled: dataEnabled,
   });
   const requestsQ = useQuery({
     queryKey: ["requests", "pending"],
     queryFn: () => api<{ items: unknown[] }>("/my/requests?status=pending&limit=5"),
     refetchInterval: 30_000,
-    enabled: !isPending && !isTrainer,
+    enabled: dataEnabled && !isTrainer,
   });
 
   const ready = !isPending && !centreQ.isLoading && !sessionsQ.isLoading;
@@ -150,7 +152,42 @@ export default function DashboardPage() {
         )}
       </div>
 
-      {isTrainer ? (
+      {mustChange && (
+        <section
+          aria-label="Password change required"
+          role="alert"
+          className="card border-warning/50 bg-warning/10 p-5"
+        >
+          <div className="flex flex-wrap items-start gap-4">
+            <span className="mt-0.5 inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-warning/40 bg-warning/20 text-warning">
+              <KeyRound className="h-5 w-5" aria-hidden />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 className="flex items-center gap-2 text-sm font-semibold text-warning">
+                <TriangleAlert className="h-4 w-4" aria-hidden />
+                Change your password to continue
+              </h2>
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                You signed in with a temporary password. You must change it within{" "}
+                <strong className="font-semibold text-foreground">72 hours</strong> — after
+                that your account stops working and you&apos;ll need your district
+                coordinator to reset it. Until then most of this portal stays locked.
+              </p>
+              <div className="mt-4">
+                <Button asChild>
+                  <Link href="/change-password">
+                    Change password now
+                    <ArrowRight className="ml-1.5 h-3.5 w-3.5" aria-hidden />
+                  </Link>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {!mustChange &&
+      (isTrainer ? (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold">Today&apos;s sessions</h2>
           {sessionsQ.isLoading ? (
@@ -427,7 +464,7 @@ export default function DashboardPage() {
             </div>
           </div>
         </>
-      )}
+      ))}
 
       <p className="text-xs text-muted-foreground">
         Cameras count people anonymously. Trainee faces are never identified.

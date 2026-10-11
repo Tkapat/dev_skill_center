@@ -26,10 +26,6 @@ async function request<T>(path: string, init: RequestInit, json: boolean, retry:
 
   if (!res.ok) {
     const d = body.detail ?? {};
-    if (d.code === "PASSWORD_CHANGE_REQUIRED") {
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination -- full reload outside React
-      window.location.href = "/change-password";
-    }
     throw { status: res.status, code: d.code, message: d.detail ?? "Something went wrong" };
   }
 

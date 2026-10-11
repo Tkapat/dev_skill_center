@@ -35,9 +35,7 @@ export default function LoginPage() {
     try {
       await login(loginId, password);
       const me = await api<Me>("/me");
-      if (me.must_change_password) {
-        router.replace("/change-password");
-      } else if (me.role === "centre_admin" && me.centre && me.centre.status !== "live") {
+      if (me.role === "centre_admin" && me.centre && me.centre.status !== "live") {
         router.replace("/onboarding");
       } else {
         router.replace("/");

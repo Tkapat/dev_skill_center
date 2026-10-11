@@ -53,7 +53,8 @@ function PathnameSync({ onPathname }: { onPathname: (p: string) => void }) {
  *  - no tokens.access -> redirect /login
  *  - GET /me (api() refreshes silently if expired)
  *  - role check (wrong app -> logout + message)
- *  - PASSWORD_CHANGE_REQUIRED -> /change-password (also enforced in api())
+ *  - must_change_password is surfaced to the UI (banner on /, /change-password);
+ *    the backend still blocks every data endpoint until the password is changed.
  */
 export function AuthGate({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -78,11 +79,6 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
           await logout();
           toast.error("This account belongs to the Government portal.");
           router.replace("/login");
-          return;
-        }
-
-        if (me.must_change_password && pathname !== "/change-password") {
-          router.replace("/change-password");
           return;
         }
 
