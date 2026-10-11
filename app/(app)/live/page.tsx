@@ -225,8 +225,14 @@ export default function LiveMonitorPage() {
         setCameraId(created.id);
         await qc.invalidateQueries({ queryKey: ["cameras"] });
         toast.success("Camera \"This computer\" was created automatically.");
-      } catch {
-        // Silently fail — the dropdown will show a button to fix it
+      } catch (err) {
+        const e = err as { status?: number; code?: string };
+        // Don't retry on 409 (already exists) or 429 (rate limited) - wait for next poll
+        if (e.status === 409 || e.code === "CAMERA_EXISTS" || e.status === 429) {
+          // Camera likely created or rate limited - stop auto-creating, let user pick from dropdown
+        } else {
+          // Other errors - silently fail, dropdown will show fix button
+        }
       } finally {
         setAutoCreating(false);
       }
