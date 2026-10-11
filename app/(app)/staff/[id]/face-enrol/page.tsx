@@ -33,8 +33,8 @@ export default function FaceEnrolPage() {
   const tickRef = React.useRef<HTMLDivElement>(null);
 
   const [consent, setConsent] = React.useState(false);
-  const [preview, setPreview] = React.useState<string | null>(null);
-  const [b64, setB64] = React.useState<string | null>(null);
+  const [previews, setPreviews] = React.useState<string[]>([]);
+  const [frames, setFrames] = React.useState<string[]>([]);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState(false);
@@ -56,9 +56,18 @@ export default function FaceEnrolPage() {
 
   React.useEffect(() => {
     return () => {
-      if (preview) URL.revokeObjectURL(preview);
+      for (const p of previews) URL.revokeObjectURL(p);
     };
-  }, [preview]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- cleanup on unmount only
+  }, []);
+
+  const clearFrames = () => {
+    setPreviews((old) => {
+      for (const p of old) URL.revokeObjectURL(p);
+      return [];
+    });
+    setFrames([]);
+  };
 
   const capture = () => {
     const image_b64 = cam.capture();
@@ -66,25 +75,21 @@ export default function FaceEnrolPage() {
       toast.error("Camera is not ready yet.");
       return;
     }
-    // transient preview only — revoked on retake/unmount, never stored
     const bytes = Uint8Array.from(atob(image_b64), (c) => c.charCodeAt(0));
     const url = URL.createObjectURL(new Blob([bytes], { type: "image/jpeg" }));
-    setPreview((old) => {
-      if (old) URL.revokeObjectURL(old);
-      return url;
-    });
-    setB64(image_b64);
+    setPreviews((old) => [...old, url]);
+    setFrames((old) => [...old, image_b64]);
     setError(null);
   };
 
   const enrol = async () => {
-    if (!b64 || !consent) return;
+    if (frames.length === 0 || !consent) return;
     setBusy(true);
     setError(null);
     try {
       await api(`/my/staff/${id}/face-enrol`, {
         method: "POST",
-        body: JSON.stringify({ image_b64: b64, consent: true }),
+        body: JSON.stringify({ frames_b64: frames, consent: true }),
       });
       setDone(true);
       await qc.invalidateQueries({ queryKey: ["staff"] });
@@ -108,11 +113,7 @@ export default function FaceEnrolPage() {
     try {
       await api(`/my/staff/${id}/face`, { method: "DELETE" });
       setDone(false);
-      setB64(null);
-      setPreview((old) => {
-        if (old) URL.revokeObjectURL(old);
-        return null;
-      });
+      clearFrames();
       await qc.invalidateQueries({ queryKey: ["staff"] });
       await staffQ.refetch();
       toast.success("Face data removed.");
@@ -205,13 +206,22 @@ export default function FaceEnrolPage() {
         </label>
 
         <div ref={frameRef} className="relative overflow-hidden rounded-[16px] bg-surface-2" style={{ aspectRatio: "4 / 3" }}>
-          {preview ? (
-            // eslint-disable-next-line @next/next/no-img-element -- transient blob preview, revoked on unmount
-            <img src={preview} alt="Captured preview" className="h-full w-full object-cover" />
+          {previews.length > 0 ? (
+            <div className="flex h-full w-full items-center justify-center gap-2 p-3">
+              {previews.map((p, i) => (
+                // eslint-disable-next-line @next/next/no-img-element -- transient blob preview, revoked on unmount
+                <img
+                  key={i}
+                  src={p}
+                  alt={`Captured frame ${i + 1}`}
+                  className="h-full max-w-[32%] rounded-lg border object-cover"
+                />
+              ))}
+            </div>
           ) : (
             <video ref={cam.setVideo} playsInline muted className="h-full w-full object-cover" aria-label="Camera preview" />
           )}
-          {cam.status !== "live" && !preview && (
+          {cam.status !== "live" && previews.length === 0 && (
             <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center">
               {cam.status === "denied" ? (
                 <>
@@ -236,7 +246,7 @@ export default function FaceEnrolPage() {
               )}
             </div>
           )}
-          {cam.status === "live" && !preview && (
+          {cam.status === "live" && previews.length === 0 && (
             <div
               aria-hidden
               className="pointer-events-none absolute left-1/2 top-1/2 h-[72%] w-[48%] -translate-x-1/2 -translate-y-1/2 rounded-[50%] border-2 border-dashed border-white/50"
@@ -247,33 +257,30 @@ export default function FaceEnrolPage() {
         {error && <p className="text-sm text-danger">{error}</p>}
 
         <div className="flex flex-wrap gap-2">
-          {!preview ? (
+          {previews.length === 0 ? (
             <Button onClick={capture} disabled={cam.status !== "live" || !consent} className="flex-1">
-              Capture
+              Capture frame 1
             </Button>
           ) : (
             <>
-              <Button
-                variant="secondary"
-                onClick={() => {
-                  setPreview((old) => {
-                    if (old) URL.revokeObjectURL(old);
-                    return null;
-                  });
-                  setB64(null);
-                }}
-              >
+              {previews.length < 3 && (
+                <Button variant="secondary" onClick={capture} disabled={cam.status !== "live"} className="flex-1">
+                  Capture frame {previews.length + 1}
+                </Button>
+              )}
+              <Button variant="secondary" onClick={clearFrames}>
                 <RotateCcw className="mr-1.5 h-4 w-4" aria-hidden />
-                Retake
+                Retake all
               </Button>
               <Button onClick={enrol} loading={busy} disabled={!consent || busy} className="flex-1">
-                Enrol
+                Enrol ({previews.length} frame{previews.length === 1 ? "" : "s"})
               </Button>
             </>
           )}
         </div>
         <p className="text-xs text-muted-foreground">
-          Sit in good light, face the camera, and keep one person in the frame.
+          Sit in good light, face the camera, and keep one person in the frame. Capture 1–3 frames for a
+          stronger template.
         </p>
       </div>
     </div>
