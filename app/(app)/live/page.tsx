@@ -459,7 +459,7 @@ export default function LiveMonitorPage() {
 
   const missing: string[] = [];
   if (!session) missing.push("a session");
-  if (camStatus !== "live") missing.push("camera access");
+  if (camStatus === "denied") missing.push("camera access (permission denied)");
 
   const canStart = missing.length === 0 && !streaming;
 
