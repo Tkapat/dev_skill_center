@@ -71,11 +71,11 @@ export default function SettingsPage() {
         <ul className="mt-3 space-y-2 text-sm leading-relaxed text-muted-foreground">
           <li className="flex gap-2">
             <Camera className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
-            Cameras count people anonymously. Trainee faces are never identified.
+            Cameras count people anonymously. Individuals are never identified.
           </li>
           <li className="flex gap-2">
             <UserCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />
-            Faces are used only for staff, and only with consent. Only an encrypted template is stored.
+            Staff verification uses only an encrypted template, stored with consent.
           </li>
           <li className="flex gap-2">
             <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" aria-hidden />

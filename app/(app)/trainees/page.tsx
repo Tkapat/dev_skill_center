@@ -368,7 +368,7 @@ export default function TraineesPage() {
       <PageHeader
         eyebrow="People"
         title="Trainees"
-        description="Trainees are never photographed or face-scanned."
+        description="Trainees are never photographed or scanned."
         action={
           <div className="flex gap-2">
             <Button variant="secondary" onClick={() => setCsvOpen(true)}>

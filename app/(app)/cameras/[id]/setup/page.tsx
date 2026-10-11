@@ -445,7 +445,7 @@ export default function CameraSetupPage() {
             Tap the image to add points. Drag the squares to adjust. Minimum 3 points.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
-            Cameras count people anonymously. Trainee faces are never identified.
+            Cameras count people anonymously. Individuals are never identified.
           </p>
         </div>
 
@@ -546,7 +546,7 @@ export default function CameraSetupPage() {
           <div className="card space-y-3 p-5">
             <p className="eyebrow">Privacy</p>
             <p className="text-xs leading-relaxed text-muted-foreground">
-              Cameras count people anonymously. Trainee faces are never identified.
+              Cameras count people anonymously. Individuals are never identified.
             </p>
           </div>
 

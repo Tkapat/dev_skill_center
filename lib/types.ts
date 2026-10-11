@@ -84,6 +84,8 @@ export interface Session {
   start_ts: string;
   end_ts: string;
   status: string;
+  kind?: string;
+  label?: string | null;
   claimed?: number | null;
   observed?: number | null;
   ci_low?: number | null;
@@ -361,4 +363,100 @@ export interface DemoSessionResponse {
   label?: string;
   start_ts?: string;
   end_ts?: string;
+  reused?: boolean;
+}
+
+export interface DemoClaimResponse {
+  ok: boolean;
+  session_id: string;
+  claimed: number;
+}
+
+export interface LiveDiagnostics {
+  api_ok: boolean;
+  cameras: {
+    id: string;
+    name: string;
+    source_kind: string | null;
+    setup_status: string | null;
+    live: { enabled: boolean; interval_s: number; tiling: boolean } | null;
+  }[];
+  last_frame_at: string | null;
+  last_state: string | null;
+  last_reasons: string[] | null;
+  frames_today: number;
+  session: { id: string; label?: string; start_ts?: string; end_ts?: string } | null;
+  run: { id: string; started_at: string } | null;
+  detector_ready: boolean;
+  advice: string[];
+}
+
+export interface MonitorRunResponse {
+  id?: string;
+  _id?: string;
+  camera_id?: string;
+  centre_id?: string;
+  session_id?: string | null;
+  status?: string;
+  started_at?: string;
+  last_frame_at?: string;
+  frames_sent?: number;
+  frames_ok?: number;
+  frames_bad?: number;
+}
+
+/* ------------------------------------------------------------ compliance */
+
+export interface CompliancePeople {
+  enrolled: number;
+  sanctioned_max: number;
+  claimed: number | null;
+  counted: number | null;
+  ci_low: number | null;
+  ci_high: number | null;
+  state: "ok" | "uncertain" | "no_data";
+  delta: number | null;
+  margin: number | null;
+  verdict: "waiting" | "match" | "inflated" | "over_capacity" | "unclaimed" | "unverifiable" | "ghost" | "unregistered";
+  text: string;
+}
+
+export interface ComplianceEquipment {
+  class: string;
+  label: string;
+  sanctioned: number;
+  declared: number;
+  seen: number | null;
+  seen_max: number | null;
+  in_use: number | null;
+  idle: number | null;
+  off: number | null;
+  in_use_pct: number | null;
+  verdict: "waiting" | "ok" | "missing" | "declaration_mismatch" | "non_operational";
+  text: string;
+}
+
+export interface ComplianceFlag {
+  id: string;
+  type: string;
+  severity: "low" | "medium" | "high" | "critical";
+  status: string;
+  reason: string;
+  created_at: string;
+}
+
+export interface ComplianceSummary {
+  level: "waiting" | "ok" | "attention" | "critical";
+  headline: string;
+}
+
+export interface ComplianceResponse {
+  session: Session | null;
+  as_of: string;
+  snapshots: number;
+  window: number;
+  people: CompliancePeople;
+  equipment: ComplianceEquipment[];
+  flags: ComplianceFlag[];
+  summary: ComplianceSummary;
 }

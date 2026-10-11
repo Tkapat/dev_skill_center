@@ -1,8 +1,16 @@
 import { refreshTokens, tokens } from "./auth";
 
-async function request<T>(path: string, init: RequestInit, json: boolean, retry: boolean): Promise<T> {
+async function request<T>(
+  path: string,
+  init: RequestInit,
+  json: boolean,
+  retry: boolean,
+  timeoutMs?: number,
+): Promise<T> {
+  const controller = timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined;
   const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}${path}`, {
     ...init,
+    signal: controller,
     headers: {
       ...(json ? { "Content-Type": "application/json" } : {}),
       "ngrok-skip-browser-warning": "true",
@@ -37,8 +45,8 @@ export async function api<T>(path: string, init: RequestInit = {}, retry = true)
 }
 
 /** Multipart upload: same as api() but Content-Type is left to the browser (boundary). */
-export async function apiUpload<T>(path: string, body: FormData, retry = true): Promise<T> {
-  return request<T>(path, { method: "POST", body }, false, retry);
+export async function apiUpload<T>(path: string, body: FormData, retry = true, timeoutMs?: number): Promise<T> {
+  return request<T>(path, { method: "POST", body }, false, retry, timeoutMs);
 }
 
 /** Fetch a relative signed image URL as a blob object URL (never <img src> direct). */

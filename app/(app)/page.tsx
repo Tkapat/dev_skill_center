@@ -15,8 +15,9 @@ import { KpiCard, KpiRowSkeleton } from "@/components/shared/KpiCard";
 import { ErrorState } from "@/components/shared/ErrorState";
 import { EmptyState } from "@/components/shared/EmptyState";
 import { CameraStatusChip, SeverityDot, UncertainChip } from "@/components/shared/StatusChip";
+import { ComplianceBoard } from "@/components/shared/ComplianceBoard";
 import { useMe } from "@/hooks/useMe";
-import type { Flag, MyCentre, Notice, Session } from "@/lib/types";
+import type { Flag, MyCentre, Notice, Session, ComplianceResponse } from "@/lib/types";
 
 const STATE_CHIP: Record<string, string> = {
   upcoming: "border-border bg-surface text-muted-foreground",
@@ -106,6 +107,12 @@ export default function DashboardPage() {
     queryFn: () => api<{ items: unknown[] }>("/my/requests?status=pending&limit=5"),
     refetchInterval: 30_000,
     enabled: dataEnabled && !isTrainer,
+  });
+  const complianceQ = useQuery({
+    queryKey: ["compliance"],
+    queryFn: () => api<ComplianceResponse>("/my/compliance"),
+    refetchInterval: 15_000,
+    enabled: dataEnabled,
   });
 
   const ready = !isPending && !centreQ.isLoading && !sessionsQ.isLoading;
@@ -276,6 +283,17 @@ export default function DashboardPage() {
               </div>
             )}
           </section>
+
+          {complianceQ.data?.session && (
+            <section aria-label="Compliance">
+              <ComplianceBoard
+                data={complianceQ.data}
+                isLoading={complianceQ.isLoading}
+                error={complianceQ.error}
+                onRetry={() => complianceQ.refetch()}
+              />
+            </section>
+          )}
 
           {liveSummary && liveSummary.cameras.length > 0 && (
             <section aria-label="Live rooms" className="card overflow-hidden">
