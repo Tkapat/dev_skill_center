@@ -148,7 +148,6 @@ export default function LiveMonitorPage() {
 
   /* ------------------------------------------------------------- state */
 
-  const [cameraId, setCameraId] = React.useState("");
   const [streaming, setStreaming] = React.useState(false);
   const [warmingUp, setWarmingUp] = React.useState(false);
   const [waitS, setWaitS] = React.useState(10);
@@ -166,20 +165,16 @@ export default function LiveMonitorPage() {
   const [startedAt, setStartedAt] = React.useState<number | null>(null);
   const [claimInput, setClaimInput] = React.useState("");
   const [settingClaim, setSettingClaim] = React.useState(false);
-  const [autoCreating, setAutoCreating] = React.useState(false);
 
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const waitRef = React.useRef(10 * 1000);
   const rowRef = React.useRef<LiveStatus | null>(null);
   const framesSentRef = React.useRef(0);
   const firstFrameRef = React.useRef(false);
+  const cameraIdRef = React.useRef<string | null>(null);
 
   /* ------------------------------------------------------------ queries */
 
-  const camsQ = useQuery({
-    queryKey: ["cameras"],
-    queryFn: () => api<{ items: CameraType[] }>("/my/cameras?limit=100"),
-  });
   const liveQ = useQuery({
     queryKey: ["live", "mine"],
     queryFn: () => api<MyLiveResponse>("/my/live"),
@@ -198,52 +193,10 @@ export default function LiveMonitorPage() {
     enabled: streaming || !!frame,
   });
 
-  const allCameras = React.useMemo(() => camsQ.data?.items ?? [], [camsQ.data]);
-  const browserCameras = React.useMemo(
-    () => allCameras.filter((c) => c.source_kind === "browser"),
-    [allCameras],
-  );
   const rows = React.useMemo(() => liveQ.data?.items ?? [], [liveQ.data]);
   const counts = liveQ.data?.counts;
-  const row = React.useMemo(() => rows.find((r) => r.camera_id === cameraId) ?? null, [rows, cameraId]);
-  const rowSession = rows.find((r) => r.session)?.session ?? null;
-  const session = rowSession ?? sessionHint;
-
-  /* ------------------------------------------------ auto-create camera */
-
-  React.useEffect(() => {
-    if (camsQ.isLoading || browserCameras.length > 0 || autoCreating) return;
-    if (camsQ.error) return;
-    // Auto-create a browser camera named "This computer"
-    (async () => {
-      setAutoCreating(true);
-      try {
-        const created = await api<CameraType>("/my/cameras", {
-          method: "POST",
-          body: JSON.stringify({ name: "This computer", source_uri: "browser", resolution: "1280x720" }),
-        });
-        setCameraId(created.id);
-        await qc.invalidateQueries({ queryKey: ["cameras"] });
-        toast.success("Camera \"This computer\" was created automatically.");
-      } catch (err) {
-        const e = err as { status?: number; code?: string };
-        // Don't retry on 409 (already exists) or 429 (rate limited) - wait for next poll
-        if (e.status === 409 || e.code === "CAMERA_EXISTS" || e.status === 429) {
-          // Camera likely created or rate limited - stop auto-creating, let user pick from dropdown
-        } else {
-          // Other errors - silently fail, dropdown will show fix button
-        }
-      } finally {
-        setAutoCreating(false);
-      }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [camsQ.isLoading, camsQ.error, browserCameras.length, autoCreating]);
-
-  // Select first browser camera when available
-  React.useEffect(() => {
-    if (!cameraId && browserCameras.length) setCameraId(browserCameras[0].id);
-  }, [browserCameras, cameraId]);
+  const row = rows[0] ?? null;
+  const session = row?.session ?? sessionHint;
 
   /* --------------------------------------------------------- session */
 
@@ -289,7 +242,8 @@ export default function LiveMonitorPage() {
 
   const sendFrame = React.useCallback(
     async (timeout: number) => {
-      if (!cameraId || camStatus !== "live") return false;
+      const camId = cameraIdRef.current;
+      if (!camId || camStatus !== "live") return false;
       const b64 = capture();
       if (!b64) return false;
 
@@ -309,7 +263,7 @@ export default function LiveMonitorPage() {
       const fd = new FormData();
       fd.append("file", blob, "frame.jpg");
       try {
-        const j = await apiUpload<FrameResponse>(`/my/cameras/${cameraId}/frame`, fd, true, timeout);
+        const j = await apiUpload<FrameResponse>(`/my/cameras/${camId}/frame`, fd, true, timeout);
         if (j.accepted === false) return false;
         framesSentRef.current += 1;
         setUpdatesSent(framesSentRef.current);
@@ -350,7 +304,7 @@ export default function LiveMonitorPage() {
         return false;
       }
     },
-    [cameraId, camStatus, capture, applyWait],
+    [camStatus, capture, applyWait],
   );
 
   React.useEffect(() => {
@@ -447,16 +401,6 @@ export default function LiveMonitorPage() {
 
   /* ------------------------------------------------------------- actions */
 
-  const pickCamera = (id: string) => {
-    setCameraId(id);
-    setFrame(null);
-    setSpark([]);
-    setBanner(null);
-    setStatusLine(null);
-    framesSentRef.current = 0;
-    setUpdatesSent(0);
-  };
-
   const startDemo = async () => {
     setStartingDemo(true);
     try {
@@ -479,15 +423,53 @@ export default function LiveMonitorPage() {
     }
   };
 
+  const ensureBrowserCamera = async (): Promise<string> => {
+    if (cameraIdRef.current) return cameraIdRef.current;
+    // Try to find existing browser camera
+    const liveCams = liveQ.data?.items ?? [];
+    const browserCam = liveCams.find((c) => c.source_kind === "browser");
+    if (browserCam?.camera_id) {
+      cameraIdRef.current = browserCam.camera_id;
+      return browserCam.camera_id;
+    }
+    // Create new browser camera
+    try {
+      const created = await api<CameraType>("/my/cameras", {
+        method: "POST",
+        body: JSON.stringify({ name: "This computer", source_uri: "browser", resolution: "1280x720" }),
+      });
+      cameraIdRef.current = created.id;
+      await qc.invalidateQueries({ queryKey: ["live", "mine"] });
+      return created.id;
+    } catch (err) {
+      const e = err as { status?: number; code?: string };
+      if (e.status === 409 || e.code === "CAMERA_EXISTS") {
+        await qc.invalidateQueries({ queryKey: ["live", "mine"] });
+        await new Promise((r) => setTimeout(r, 500));
+        const liveCams2 = liveQ.data?.items ?? [];
+        const browserCam2 = liveCams2.find((c) => c.source_kind === "browser");
+        if (browserCam2?.camera_id) {
+          cameraIdRef.current = browserCam2.camera_id;
+          return browserCam2.camera_id;
+        }
+      }
+      throw err;
+    }
+  };
+
   const missing: string[] = [];
-  if (!cameraId) missing.push("a camera");
   if (!session) missing.push("a session");
   if (camStatus !== "live") missing.push("camera access");
 
   const canStart = missing.length === 0 && !streaming;
 
   const startStreaming = async () => {
-    if (!canStart || !cameraId) return;
+    if (!canStart) return;
+    const camId = await ensureBrowserCamera();
+    if (!camId) {
+      setBanner({ tone: "danger", text: "Could not create or find browser camera." });
+      return;
+    }
     setBanner(null);
     setStatusLine(null);
     setWarmingUp(true);
@@ -499,12 +481,12 @@ export default function LiveMonitorPage() {
 
     try {
       // 1. PUT camera live settings
-      await api(`/my/cameras/${cameraId}/live`, {
+      await api(`/my/cameras/${camId}/live`, {
         method: "PUT",
         body: JSON.stringify({ enabled: true, interval_s: waitS }),
       });
       // 2. Start monitor run
-      await api<MonitorRunResponse>(`/my/cameras/${cameraId}/monitor/start`, { method: "POST" });
+      await api<MonitorRunResponse>(`/my/cameras/${camId}/monitor/start`, { method: "POST" });
       // 3. Ensure webcam is on
       if (camStatus !== "live") await startCam();
       // 4. Start streaming loop
@@ -516,10 +498,11 @@ export default function LiveMonitorPage() {
   };
 
   const stopStreaming = async () => {
-    if (!cameraId) return;
+    const camId = cameraIdRef.current;
+    if (!camId) return;
     setStopping(true);
     try {
-      await api(`/my/cameras/${cameraId}/monitor/stop`, {
+      await api(`/my/cameras/${camId}/monitor/stop`, {
         method: "POST",
         body: JSON.stringify({ reason: "manual" }),
       });
@@ -649,45 +632,9 @@ export default function LiveMonitorPage() {
         </div>
       )}
 
-      <div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
+<div className="grid gap-4 lg:grid-cols-[1.5fr_1fr]">
         {/* ---- camera preview ---- */}
         <section className="card p-5" aria-label="Camera preview">
-          <div className="mb-4 flex flex-wrap items-end gap-3">
-            <div className="min-w-[200px] flex-1 space-y-2">
-              <label htmlFor="live-camera-select" className="text-sm font-medium">
-                Camera
-              </label>
-              {camsQ.isLoading || autoCreating ? (
-                <Skeleton className="h-10 w-full" />
-              ) : camsQ.error ? (
-                <Button size="sm" variant="secondary" onClick={() => camsQ.refetch()}>
-                  Could not load cameras — Retry
-                </Button>
-              ) : browserCameras.length === 0 ? (
-                <div className="flex items-center gap-2">
-                  <p className="text-sm text-muted-foreground">No browser cameras found.</p>
-                  <Button size="sm" variant="secondary" onClick={() => setAutoCreating(false)}>
-                    Add one
-                  </Button>
-                </div>
-              ) : (
-                <Select value={cameraId} onValueChange={pickCamera}>
-                  <SelectTrigger id="live-camera-select" aria-label="Camera">
-                    <SelectValue placeholder="Select camera" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {browserCameras.map((c) => (
-                      <SelectItem key={c.id} value={c.id}>
-                        {c.name}
-                        {c.resolution ? ` (${c.resolution})` : ""}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-          </div>
-
           <div className="relative overflow-hidden rounded-[16px] bg-surface-2" style={{ aspectRatio: "16 / 9" }}>
             {camStatus !== "live" && (
               <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-6 text-center">

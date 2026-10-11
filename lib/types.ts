@@ -286,7 +286,7 @@ export interface EdgeStatus {
 
 /* ------------------------------------------------------------- live room */
 
-export type LiveState = "live" | "idle" | "offline" | "tampered" | "provisional";
+export type LiveState = "live" | "idle" | "offline" | "tampered" | "provisional" | "error";
 
 export interface LiveSession {
   id: string;
@@ -306,6 +306,7 @@ export interface LiveItemCounts {
 export interface LiveStatus {
   camera_id: string;
   camera_name: string;
+  source_kind?: string | null;
   state: LiveState | null;
   ts?: string | null;
   age_s?: number | null;
